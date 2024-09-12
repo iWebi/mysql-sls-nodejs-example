@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { Logger } from "@aws-lambda-powertools/logger";
-import mysql, { Connection } from "mysql2/promise";
+import { Connection, createConnection } from "mysql2/promise";
 import { getSecretValue } from "./secrets";
 import { Book } from "./types";
 import { internalServerErrorWith, isEmpty } from "./utils";
@@ -16,8 +16,7 @@ interface DBCredentials {
 }
 
 export async function initDBConnectionUsingEnv() {
-  logger.info("initializing database connection using " + JSON.stringify(process.env, null, 4));
-  connection = await mysql.createConnection({
+  connection = await createConnection({
     host: process.env.DB_HOST!,
     port: +process.env.DB_PORT!,
     user: process.env.DB_USERNAME!,
@@ -28,7 +27,6 @@ export async function initDBConnectionUsingEnv() {
 }
 
 export async function initDBConnectionUsingSecretManager() {
-  logger.info("initializing database connection");
   const secretName = process.env.DB_CREDENTIALS_SECRET_NAME || "";
   if (isEmpty(secretName)) {
     console.error(
@@ -42,8 +40,7 @@ export async function initDBConnectionUsingSecretManager() {
     throw internalServerErrorWith("Invalid application state");
   }
   const credentials = JSON.parse(credentialString) as DBCredentials;
-  logger.info(`creating db connection using ${connection}`);
-  connection = await mysql.createConnection({
+  connection = await createConnection({
     host: credentials.host,
     port: credentials.port,
     user: credentials.username,
@@ -53,10 +50,9 @@ export async function initDBConnectionUsingSecretManager() {
   logger.info("Successfully initialized database connection");
 }
 
-async function getConnection(): Promise<mysql.Connection> {
+async function getConnection(): Promise<Connection> {
   if (!connection) {
     if (process.env.IS_OFFLINE) {
-      console.log("offline connection");
       await initDBConnectionUsingEnv();
     } else {
       await initDBConnectionUsingSecretManager();
@@ -66,7 +62,6 @@ async function getConnection(): Promise<mysql.Connection> {
 }
 
 export async function addBook(book: Book): Promise<Book> {
-  console.log("adding book.....");
   const _connection = await getConnection();
   // await createTable();
   await _connection.execute("INSERT INTO books (id, name, author, pages) VALUES (?, ?, ?, ?)", [
